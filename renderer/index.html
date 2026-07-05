@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>GC → Wii U Injector</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>GameCube → Wii U Injector</h1>
+    <span class="sub">Nintendont-based Virtual Console injection · inspired by UWUVCI-AIO</span>
+  </header>
+
+  <main>
+    <section id="setup" class="card">
+      <h2>1 · Setup</h2>
+      <div class="row">
+        <span id="toolsStatus" class="status">Checking tools…</span>
+        <button id="btnTools">Download tools</button>
+      </div>
+      <div class="row">
+        <label for="commonKey">Wii U common key</label>
+        <input id="commonKey" type="password" placeholder="32 hex characters (required for installable output)" spellcheck="false" />
+        <button id="btnSaveKey">Save</button>
+        <span id="keyStatus" class="status"></span>
+      </div>
+      <p class="hint">Without a common key the app still produces a loadiine-format folder, but you need the key to build a package installable with WUP Installer GX2. Get it from your own console.</p>
+      <div class="row">
+        <label>Nintendont</label>
+        <button id="btnNincfg">Save nincfg.bin to SD…</button>
+        <span id="nincfgStatus" class="status">required on SD root, or GC titles error on launch</span>
+      </div>
+    </section>
+
+    <section id="base" class="card">
+      <h2>2 · Base title (Wii eShop title, e.g. Rhythm Heaven Fever)</h2>
+      <div class="row">
+        <label for="baseSelect">Base</label>
+        <select id="baseSelect"></select>
+      </div>
+      <details>
+        <summary>Download a base from NUS (needs title ID + title key)</summary>
+        <div class="row">
+          <input id="baseTid" placeholder="Title ID (16 hex)" spellcheck="false" />
+          <input id="baseKey" placeholder="Title key (32 hex)" spellcheck="false" />
+        </div>
+        <div class="row">
+          <input id="baseName" placeholder="Name (e.g. Rhythm Heaven Fever)" />
+          <input id="baseRegion" placeholder="Region (e.g. USA)" size="8" />
+          <button id="btnBaseDownload">Download &amp; decrypt</button>
+        </div>
+      </details>
+      <details>
+        <summary>Import a base folder from disk</summary>
+        <p class="hint">Either a NUS download (title.tmd + .app files) or an already-decrypted dump with code/content/meta (e.g. from Dumpling).</p>
+        <div class="row">
+          <button id="btnBaseImport">Choose folder…</button>
+        </div>
+      </details>
+    </section>
+
+    <section id="game" class="card">
+      <h2>3 · Game</h2>
+      <div class="row">
+        <label>GC image</label>
+        <button id="btnGame">Choose…</button>
+        <span id="gamePath" class="path">none — iso / gcm / ciso / gcz / nkit.iso</span>
+      </div>
+      <div class="row">
+        <label>Disc 2</label>
+        <button id="btnDisc2">Choose…</button>
+        <span id="disc2Path" class="path">optional</span>
+        <button id="btnDisc2Clear" class="ghost">clear</button>
+      </div>
+      <div class="row">
+        <label for="gameName">Menu name</label>
+        <input id="gameName" placeholder="Name shown on the Wii U menu" />
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="optAutoArt" checked /> Auto-fetch box art from community repo</label>
+      </div>
+      <div class="row imgrow">
+        <label>Images</label>
+        <button id="btnIcon">Icon…</button><span id="iconPath" class="path">auto</span>
+        <button id="btnTv">TV…</button><span id="tvPath" class="path">auto</span>
+        <button id="btnDrc">GamePad…</button><span id="drcPath" class="path">= TV</span>
+        <button id="btnLogo">Logo…</button><span id="logoPath" class="path">keep base</span>
+      </div>
+      <p class="hint">Custom images override auto-fetch per slot. Uncheck auto-fetch to use the base's default art.</p>
+      <div class="row">
+        <label><input type="checkbox" id="optForce43" /> Force 4:3</label>
+        <label><input type="checkbox" id="optDontTrim" /> Don't trim (keep full ISO)</label>
+      </div>
+    </section>
+
+    <section id="go" class="card">
+      <h2>4 · Inject</h2>
+      <div class="row">
+        <button id="btnInject" class="primary" disabled>Inject</button>
+        <button id="btnBatch">Batch a folder…</button>
+        <div class="progress"><div id="bar"></div></div>
+        <span id="progressMsg" class="status"></span>
+      </div>
+      <p class="hint">Batch injects every GC image (or .7z/.zip archive containing one) in a folder against the selected base, using the current options and auto-fetched art.</p>
+      <div class="row" id="resultRow" hidden>
+        <span id="resultMsg"></span>
+        <button id="btnOpenOut">Open output folder</button>
+      </div>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

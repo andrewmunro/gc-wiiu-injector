@@ -1,0 +1,17 @@
+{
+  "name": "gc-wiiu-injector",
+  "version": "0.1.0",
+  "description": "GameCube injector for Wii U Virtual Console (Nintendont-based), inspired by UWUVCI-AIO",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "cli": "node src/cli.js"
+  },
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "electron": "^31.3.0"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.14"
+  }
+}
