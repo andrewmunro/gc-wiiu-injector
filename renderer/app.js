@@ -10,7 +10,9 @@ const state = {
 };
 
 const GC_FILTERS = [
+  { name: 'GameCube games & archives', extensions: ['iso', 'gcm', 'ciso', 'gcz', '7z', 'zip', 'rar'] },
   { name: 'GameCube images', extensions: ['iso', 'gcm', 'ciso', 'gcz'] },
+  { name: 'Archives', extensions: ['7z', 'zip', 'rar'] },
   { name: 'All files', extensions: ['*'] },
 ];
 

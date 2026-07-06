@@ -51,46 +51,56 @@ async function extractMember(sevenZip, archive, member, destDir, log) {
 }
 
 /**
- * Resolve every game source in a folder to an on-disk GC image path.
- * Loose images are used directly; archives are extracted to a staging dir.
- * Returns [{ name, gamePath, cleanup }].
+ * Resolve one source path to a game descriptor, or null if it isn't a GC image
+ * or an archive containing one. Loose images are used directly; archives get a
+ * staging dir and are extracted later (in processOne).
+ * Returns { name, gamePath | (archive, member, sevenZip, stage), cleanup } | null.
+ */
+async function resolveEntry(entry, sevenZip, { log = () => {} } = {}) {
+  const ext = path.extname(entry).toLowerCase();
+  if (IMAGE_EXTS.includes(ext)) {
+    return { name: cleanName(entry), gamePath: entry, cleanup: null };
+  }
+  if (ARCHIVE_EXTS.includes(ext)) {
+    if (!sevenZip) {
+      log(`Skipping ${path.basename(entry)} — 7-Zip not found (install it or set SEVENZIP).`);
+      return null;
+    }
+    const members = await listArchive(sevenZip, entry);
+    const image = members.find((m) => IMAGE_EXTS.includes(path.extname(m).toLowerCase()));
+    if (!image) {
+      log(`Skipping ${path.basename(entry)} — no GC image inside.`);
+      return null;
+    }
+    // Stage OUTSIDE paths.temp — inject() wipes paths.temp at its start.
+    const stage = path.join(paths.dataRoot, 'batchsrc', cleanName(entry));
+    return {
+      name: cleanName(entry),
+      archive: entry,
+      member: image,
+      sevenZip,
+      stage,
+      get gamePath() {
+        return this._gamePath;
+      },
+      cleanup() {
+        fs.rmSync(this.stage, { recursive: true, force: true });
+      },
+    };
+  }
+  return null;
+}
+
+/**
+ * Resolve every game source in a folder to a game descriptor.
  */
 async function resolveGames(dir, { log = () => {} } = {}) {
   const entries = fs.readdirSync(dir).map((f) => path.join(dir, f));
   const sevenZip = find7z();
   const games = [];
-
   for (const entry of entries) {
-    const ext = path.extname(entry).toLowerCase();
-    if (IMAGE_EXTS.includes(ext)) {
-      games.push({ name: cleanName(entry), gamePath: entry, cleanup: null });
-    } else if (ARCHIVE_EXTS.includes(ext)) {
-      if (!sevenZip) {
-        log(`Skipping ${path.basename(entry)} — 7-Zip not found (install it or set SEVENZIP).`);
-        continue;
-      }
-      const members = await listArchive(sevenZip, entry);
-      const image = members.find((m) => IMAGE_EXTS.includes(path.extname(m).toLowerCase()));
-      if (!image) {
-        log(`Skipping ${path.basename(entry)} — no GC image inside.`);
-        continue;
-      }
-      // Stage OUTSIDE paths.temp — inject() wipes paths.temp at its start.
-      const stage = path.join(paths.dataRoot, 'batchsrc', cleanName(entry));
-      games.push({
-        name: cleanName(entry),
-        archive: entry,
-        member: image,
-        sevenZip,
-        stage,
-        get gamePath() {
-          return this._gamePath;
-        },
-        cleanup() {
-          fs.rmSync(this.stage, { recursive: true, force: true });
-        },
-      });
-    }
+    const g = await resolveEntry(entry, sevenZip, { log });
+    if (g) games.push(g);
   }
   return games;
 }
@@ -103,9 +113,11 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
   let games;
   if (opts.gamePath) {
     const ext = path.extname(opts.gamePath).toLowerCase();
-    if (!IMAGE_EXTS.includes(ext))
-      throw new Error(`Not a recognized GC image: ${opts.gamePath}`);
-    games = [{ name: cleanName(opts.gamePath), gamePath: opts.gamePath, cleanup: null }];
+    if (!IMAGE_EXTS.includes(ext) && !ARCHIVE_EXTS.includes(ext))
+      throw new Error(`Not a recognized GC image or archive: ${opts.gamePath}`);
+    const g = await resolveEntry(opts.gamePath, find7z(), { log });
+    if (!g) throw new Error(`Could not find a GC image in: ${opts.gamePath}`);
+    games = [g];
   } else {
     games = await resolveGames(opts.dir, { log });
   }

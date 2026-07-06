@@ -1,16 +1,46 @@
 # GC → Wii U Injector
 
-An Electron re-implementation of [UWUVCI-AIO](https://github.com/UWUVCI-Prime/UWUVCI-AIO-WPF)'s
+An Electron re-implementation of [UWUVCI-AIO](https://github.com/stuff-by-3-random-dudes/UWUVCI-AIO-WPF)'s
 **GameCube** injection path: wraps a GameCube image in a Wii container with
 [Nintendont](https://github.com/FIX94/Nintendont) as its boot DOL, injects that into a
 Wii-on-Wii-U Virtual Console base, and packs it as a title you can install to your Wii U
 with WUP Installer GX2.
 
 Uses the same external tool set as UWUVCI (downloaded on first run from the
-[UWUVCI-Tools](https://github.com/Hotbrawl20/UWUVCI-Tools) repo, MD5-verified):
+[UWUVCI-Tools](https://github.com/NicoAICP/UWUVCI-Tools) repo, MD5-verified):
 `wit`, `nfs2iso2nfs`, `nintendont.dol`, NKit converters, `CDecrypt`, `CNUSPACKER`, image
 converters. The UI and pipeline are Node/Electron; the tools are Windows executables
 (on macOS/Linux you'd need Wine, same as upstream UWUVCI).
+
+## Quickstart
+
+Get from a GameCube dump to an installable Wii U title in a few minutes. The window walks
+top to bottom through four numbered steps:
+
+1. **Install and launch.**
+   ```
+   npm install
+   npm start
+   ```
+2. **1 · Setup.** On first run, wait for **Download tools** to finish (tools are fetched and
+   MD5-verified into `~/.gc-wiiu-injector/tools/`). Paste your 32‑hex **Wii U common key** and
+   click **Save** — without it you only get a loadiine folder, not an installable package.
+   While here, click **Save nincfg.bin to SD…** and drop the file on your SD card root
+   (Nintendont needs it there or GameCube titles error on launch).
+3. **2 · Base title.** Expand **Download a base from NUS**, enter the title ID + title key of
+   a Wii U eShop Wii title (Rhythm Heaven Fever is the usual pick), set a name/region, and
+   click **Download & decrypt**. Already have a NUS or decrypted dump? Use **Import a base
+   folder from disk** instead. Then pick it in the **Base** dropdown.
+4. **3 · Options (optional).** Box art auto-fetches from the disc ID by default; tick
+   **Force 4:3** if you want it, or set a custom output folder.
+5. **4 · Inject.** Under **Source**, **Select file…** to choose one GameCube image (`.iso`,
+   `.gcm`, `.ciso`, `.gcz`, `.nkit.iso`, or a `.7z`/`.zip`/`.rar` archive), then click
+   **Inject**. To batch-convert many at once, **Select folder…** instead. Output lands in
+   `~/.gc-wiiu-injector/output/<name>/`.
+6. **Install on console.** Copy the output folder to `SD:/install/<name>/` and run WUP
+   Installer GX2 — see [Install on the Wii U](#install-on-the-wii-u) below.
+
+Prefer the terminal? The [CLI](#run) runs the exact same pipeline (including `batch`).
 
 ## What you need
 
@@ -44,6 +74,20 @@ node src/cli.js inject --base "<bases dir>/Rhythm Heaven Fever [USA]" \
 
 Data lives in `~/.gc-wiiu-injector/` (tools, bases, temp, output, settings).
 
+## Build installers
+
+Packaged with [electron-builder](https://www.electronjs.org/) (Node 20.19+ or 22+ required):
+
+```
+npm run dist:win     # Windows: NSIS installer + portable .exe -> dist/
+npm run dist:mac     # macOS: .dmg + .zip (x64 + arm64) -> dist/
+npm run dist         # current platform
+```
+
+The [`Build` GitHub Actions workflow](.github/workflows/build.yml) builds Windows and macOS
+on every push to `main`; pushing a `v*` tag also attaches the installers to a GitHub Release.
+macOS artifacts are unsigned (Gatekeeper: right-click → Open).
+
 ## Pipeline (port of UWUVCI's GCNInjectService/WitNfsService)
 
 1. Extract `BASE.zip` Wii container skeleton; copy `nintendont.dol` (or `nintendont_force.dol`
@@ -64,6 +108,30 @@ Copy the output folder to `SD:/install/<name>/`, run WUP Installer GX2 (via the 
 Launcher / Tiramisu / Aroma), install to NAND or USB. GamePad, buttons and sticks work
 through Nintendont's passthrough. Nintendont reads `nincfg.bin` from the SD root if you
 want to tweak its settings (memcard emulation, cheats, video).
+
+## Tools & credits
+
+This app is a thin Node/Electron front end over the same external tools UWUVCI uses. None of
+them are bundled in this repo — they're downloaded on first run from the
+[UWUVCI-Tools](https://github.com/NicoAICP/UWUVCI-Tools) mirror (which redistributes patched
+builds). Full credit to their authors:
+
+| Tool (files) | Purpose | Source |
+| --- | --- | --- |
+| **Wiimms ISO Tools** — `wit.exe` (+ `cygwin1.dll`, `cygz.dll`, `cyggcc_s-1.dll`, `cygcrypto-1.1.dll`, `cygncursesw-10.dll`) | Build/extract the Wii ISO and pull ticket/TMD | [Wiimm/wiimms-iso-tools](https://github.com/Wiimm/wiimms-iso-tools) ([site](https://wit.wiimm.de/)); [Cygwin](https://www.cygwin.com/) runtime |
+| **NKit** — `ConvertToNKit.exe`, `ConvertToISO.exe`, `NKit.dll`, `NKit.dll.config` | Trim / restore GameCube images | [Nanook/NKit](https://github.com/Nanook/NKit) |
+| **nfs2iso2nfs** — `nfs2iso2nfs.exe` | Convert the Wii ISO to `.nfs` and patch `fw.img` (homebrew + GamePad passthrough) | [sabykos/nfs2iso2nfs](https://github.com/sabykos/nfs2iso2nfs) |
+| **Nintendont** — `nintendont.dol`, `nintendont_force.dol` | GameCube loader used as the inject's boot DOL | [FIX94/Nintendont](https://github.com/FIX94/Nintendont) |
+| **CDecrypt** — `CDecrypt.exe` | Decrypt an imported NUS base | [VitaSmith/cdecrypt](https://github.com/VitaSmith/cdecrypt) (crediar's original, modified v2) |
+| **CNUSPACKER** — `CNUSPACKER.exe` | Pack `code/content/meta` into an installable title | [NicoAICP/CNUS_Packer](https://github.com/NicoAICP/CNUS_Packer) |
+| **FreeImage converters** — `png2tga.exe`, `jpg2tga.exe`, `bmp2tga.exe`, `FreeImage.dll` | Resize menu/cover art into Wii U TGAs | [FreeImage](https://freeimage.sourceforge.io/) |
+| **SharpCompress** — `SharpCompress.dll` | Archive handling for NKit | [adamhathcock/sharpcompress](https://github.com/adamhathcock/sharpcompress) |
+| Data assets — `BASE.zip`, `iconTex.tga`, `bootTvTex.png` | Wii container skeleton + default images | [UWUVCI-Tools](https://github.com/NicoAICP/UWUVCI-Tools) |
+
+Cover/icon artwork is fetched from [UWUVCI-IMAGES](https://github.com/UWUVCI-PRIME/UWUVCI-IMAGES),
+and the pipeline itself is ported from [UWUVCI-AIO-WPF](https://github.com/stuff-by-3-random-dudes/UWUVCI-AIO-WPF).
+Packaging uses [Electron](https://www.electronjs.org/) + [electron-builder](https://www.electron.build/),
+with [adm-zip](https://github.com/cthackers/adm-zip) for extraction.
 
 ## Legal
 
