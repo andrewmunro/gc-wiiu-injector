@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { paths } = require('./paths');
 const { run } = require('./run');
 const { inject } = require('./inject');
@@ -114,12 +113,14 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
 
   log(`Found ${games.length} game(s) to process.`);
   const results = [];
-  const maxConcurrent = Math.max(1, Math.min(os.cpus().length, games.length));
-  let idx = 0;
 
-  async function processOne() {
-    const i = idx++;
-    if (i >= games.length) return;
+  // Injections run STRICTLY SEQUENTIALLY. The pipeline shares non-reentrant
+  // state — the NKit trimmer (nkitConvert) writes a fixed-name output into the
+  // shared tools dir and grabs "the newest match", so concurrent injects delete
+  // or steal each other's game.iso and produce packages that fail to install
+  // ("SD card corrupted"). The work is disk-bound anyway, so parallelism on one
+  // drive only thrashes seeks and is slower, not faster.
+  for (let i = 0; i < games.length; i++) {
     const g = games[i];
     const label = `[${i + 1}/${games.length}] ${g.name}`;
     const tempDir = path.join(paths.temp, 'batch', g.name.replace(/[^a-z0-9]/gi, '_'));
@@ -156,8 +157,6 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
     }
   }
 
-  const workers = Array.from({ length: maxConcurrent }, () => processOne());
-  await Promise.all(workers);
   return results;
 }
 

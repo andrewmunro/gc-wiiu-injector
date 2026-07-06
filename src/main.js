@@ -60,6 +60,30 @@ function createBatchedLog(channel, intervalMs = 150) {
 }
 const logTo = (channel) => createBatchedLog(channel);
 
+// Batch logs are keyed by game index. Coalesce per index on a timer so a chatty
+// tool (CNUSPACKER prints a line per content chunk) doesn't fire one IPC send
+// per line — that floods the main event loop and, worse, drains the child's
+// stdout pipe so slowly the tool blocks on writes. Buffer cheaply, flush ~8/sec.
+function createBatchedBatchLog(channel, intervalMs = 120) {
+  const buffers = new Map(); // index -> string[]
+  let timer = null;
+  const flush = () => {
+    for (const [index, lines] of buffers) {
+      if (lines.length) send(channel, { index, line: lines.join('\n') });
+    }
+    buffers.clear();
+    timer = null;
+  };
+  return (payload) => {
+    // batchInject also emits plain-string status lines (no index); those are
+    // low-volume and not shown per-card, so only buffer the per-game objects.
+    if (!payload || typeof payload !== 'object' || typeof payload.index !== 'number') return;
+    const arr = buffers.get(payload.index) || buffers.set(payload.index, []).get(payload.index);
+    arr.push(payload.line);
+    if (!timer) timer = setTimeout(flush, intervalMs);
+  };
+}
+
 ipcMain.handle('status:get', () => ({
   missingTools: missingTools(),
   settings: settings.load(),
@@ -154,11 +178,12 @@ ipcMain.handle('batch:run', async (_e, options) => {
   try {
     const { batchInject } = require('./batch');
     const s = settings.load();
+    const batchLog = createBatchedBatchLog('batch:log');
     const results = await batchInject(
       { ...options, outDir: options.outDir || s.outDir, commonKey: s.commonKey },
       {
         onProgress: ({ index, total, pct, msg, name }) => send('batch:progress', { index, total, pct, msg, name }),
-        log: ({ index, line }) => send('batch:log', { index, line }),
+        log: batchLog,
       }
     );
     return { results };
