@@ -85,7 +85,9 @@ npm run dist         # current platform
 ```
 
 The [`Build` GitHub Actions workflow](.github/workflows/build.yml) builds Windows and macOS
-on every push to `main`; pushing a `v*` tag also attaches the installers to a GitHub Release.
+on every push to `main` and refreshes a rolling **[`latest`](../../releases/tag/latest)**
+prerelease with the newest installers. Pushing a `v*` tag (e.g. `git tag v0.1.0 && git push
+origin v0.1.0`) cuts a permanent versioned Release with auto-generated notes.
 macOS artifacts are unsigned (Gatekeeper: right-click → Open).
 
 ## Pipeline (port of UWUVCI's GCNInjectService/WitNfsService)

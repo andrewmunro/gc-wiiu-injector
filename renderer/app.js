@@ -237,7 +237,9 @@ $('btnInject').addEventListener('click', async () => {
     state.lastOutPath = firstOk?.outPath;
     for (const [i, c] of batchCards) {
       c.card.className = 'game-card ' + (r.results[i]?.ok ? 'ok' : 'fail');
-      c.status.textContent = r.results[i]?.ok ? 'done' : (r.results[i]?.error || 'failed');
+      c.status.textContent = r.results[i]?.ok
+        ? (r.results[i]?.verified ? 'done · verified ✓' : 'done')
+        : (r.results[i]?.error || 'failed');
     }
     $('progressMsg').textContent = `Done: ${ok}/${r.results.length} succeeded`;
     $('resultMsg').textContent = state.hasKey

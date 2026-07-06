@@ -6,6 +6,33 @@ const { toolPath } = require('./tools');
 const { run } = require('./run');
 const { editBaseXmls, setReservedFlag2 } = require('./xml');
 const { convertImage } = require('./images');
+const { parseTmd } = require('./nus');
+
+/**
+ * Fast integrity check on a CNUSPACKER output folder: every content declared in
+ * title.tmd must exist as <ID>.app with the exact declared size (a truncated or
+ * missing content is what makes WUP Installer report "corrupted"), hashed
+ * contents must have their .h3, and the ticket/cert must be present. This is a
+ * pure stat check (no decryption), so it's instant even for large titles.
+ */
+function verifyPackedTitle(dir) {
+  for (const req of ['title.tmd', 'title.tik', 'title.cert']) {
+    if (!fs.existsSync(path.join(dir, req))) throw new Error(`package verification failed: missing ${req}`);
+  }
+  const { contents } = parseTmd(fs.readFileSync(path.join(dir, 'title.tmd')));
+  if (!contents.length) throw new Error('package verification failed: TMD lists no contents');
+  for (const c of contents) {
+    const idHex = c.id.toString(16).padStart(8, '0').toUpperCase();
+    const app = path.join(dir, `${idHex}.app`);
+    if (!fs.existsSync(app)) throw new Error(`package verification failed: missing content ${idHex}.app`);
+    const actual = fs.statSync(app).size;
+    if (actual !== c.size)
+      throw new Error(`package verification failed: ${idHex}.app is ${actual} bytes, TMD expects ${c.size} (incomplete pack)`);
+    if (c.type & 0x02 && !fs.existsSync(path.join(dir, `${idHex}.h3`)))
+      throw new Error(`package verification failed: hashed content ${idHex} is missing its .h3`);
+  }
+  return { contentCount: contents.length };
+}
 
 function newestMatch(dir, suffix, since) {
   if (!fs.existsSync(dir)) return null;
@@ -250,6 +277,7 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   fs.rmSync(outPath, { recursive: true, force: true });
   fs.mkdirSync(outPath, { recursive: true });
 
+  let verified = false;
   if (o.commonKey) {
     step(85, 'Packing installable title (CNUSPACKER)...');
     await run(toolPath('CNUSPACKER.exe'), ['-in', work, '-out', outPath, '-encryptKeyWith', o.commonKey], {
@@ -257,6 +285,10 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
       log,
     });
     if (!fs.readdirSync(outPath).length) throw new Error('CNUSPACKER produced no output.');
+    step(97, 'Verifying packaged title...');
+    const { contentCount } = verifyPackedTitle(outPath);
+    verified = true;
+    log(`Package verified: ${contentCount} contents, all sizes match TMD.`);
   } else {
     step(85, 'No common key set — emitting loadiine-format folder instead of installable package...');
     copyDir(work, outPath);
@@ -264,7 +296,7 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
 
   step(100, 'Done.');
   if (process.env.GCWU_KEEP_TEMP !== '1') fs.rmSync(tmpBase, { recursive: true, force: true });
-  return { outPath, titleId, prodCode, packed: !!o.commonKey };
+  return { outPath, titleId, prodCode, packed: !!o.commonKey, verified };
 }
 
 module.exports = { inject };

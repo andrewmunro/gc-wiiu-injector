@@ -158,7 +158,7 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
         },
         { onProgress: (pct, msg) => onProgress({ index: i, total: games.length, pct, msg, name: g.name }), log: (line) => log({ index: i, line }) }
       );
-      results.push({ name: g.name, ok: true, outPath: res.outPath, titleId: res.titleId });
+      results.push({ name: g.name, ok: true, outPath: res.outPath, titleId: res.titleId, verified: res.verified });
       log(`✓ ${label} -> ${res.outPath}`);
     } catch (e) {
       results.push({ name: g.name, ok: false, error: e.message });
