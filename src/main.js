@@ -154,8 +154,8 @@ ipcMain.handle('batch:run', async (_e, options) => {
     const results = await batchInject(
       { ...options, dir, outDir: options.outDir || s.outDir, commonKey: s.commonKey },
       {
-        onProgress: ({ index, total, pct, name }) => send('inject:progress', { pct, msg: `(${index + 1}/${total}) ${name}: ${pct}%` }),
-        log: logTo('log'),
+        onProgress: ({ index, total, pct, msg, name }) => send('batch:progress', { index, total, pct, msg, name }),
+        log: ({ index, line }) => send('batch:log', { index, line }),
       }
     );
     return { results };

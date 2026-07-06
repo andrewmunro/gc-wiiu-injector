@@ -103,11 +103,15 @@
         <span id="progressMsg" class="status"></span>
       </div>
       <p class="hint">Batch injects every GC image (or .7z/.zip archive containing one) in a folder against the selected base, using the current options and auto-fetched art.</p>
+      <div id="batchCards"></div>
       <div class="row" id="resultRow" hidden>
         <span id="resultMsg"></span>
         <button id="btnOpenOut">Open output folder</button>
       </div>
-      <pre id="log"></pre>
+      <details id="logDetail">
+        <summary>Log</summary>
+        <pre id="log"></pre>
+      </details>
     </section>
   </main>
 

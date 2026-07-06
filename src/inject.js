@@ -33,9 +33,20 @@ function sanitizeName(name) {
  */
 async function nkitConvert(exeName, sourcePath, outSuffix, log) {
   const exe = toolPath(exeName);
-  const started = Date.now() - 1000;
+  // The NKit converters always write output to paths.tools (next to the exe)
+  // using filenames like "out.nkit.iso" or "out.nkit.iso_4" (appending _N when
+  // the name already exists). Remove any leftover matches before we run so
+  // the newest one found afterward is definitely ours.
+  const suffixClean = outSuffix.replace(/\./g, '\\.');
+  const pattern = new RegExp(`^out${suffixClean}(?:_\\d+)?$`);
+  for (const f of fs.readdirSync(paths.tools)) {
+    if (pattern.test(f)) fs.rmSync(path.join(paths.tools, f), { force: true });
+  }
   await run(exe, [sourcePath], { cwd: paths.tools, log, ignoreExitCode: true });
-  const produced = newestMatch(paths.tools, outSuffix, started);
+  const produced = fs.readdirSync(paths.tools)
+    .filter((f) => pattern.test(f))
+    .map((f) => path.join(paths.tools, f))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
   if (!produced) throw new Error(`${exeName} produced no ${outSuffix} output for ${sourcePath}`);
   return produced;
 }
@@ -45,16 +56,17 @@ async function nkitConvert(exeName, sourcePath, outSuffix, log) {
  * Mirrors UWUVCI's PlacePrimaryGame, with an extra wit conversion step so
  * .ciso/.wbfs-style inputs also work.
  */
-async function prepareGameFile(sourcePath, targetPath, { dontTrim, log }) {
+async function prepareGameFile(sourcePath, targetPath, { dontTrim, log, tempDir }) {
   const lower = sourcePath.toLowerCase();
   const isNkit = lower.includes('.nkit.');
   const ext = path.extname(lower);
+  const t = tempDir || paths.temp;
 
   // Normalize compressed formats NKit can't read (ciso) to plain ISO.
   if (ext === '.ciso') {
     log('Decoding .ciso to plain ISO...');
     const { cisoToIso } = require('./ciso');
-    const tmpIso = path.join(paths.temp, 'ciso_conv.iso');
+    const tmpIso = path.join(t, 'ciso_conv.iso');
     fs.rmSync(tmpIso, { force: true });
     cisoToIso(sourcePath, tmpIso);
     sourcePath = tmpIso;
@@ -99,6 +111,7 @@ async function prepareGameFile(sourcePath, targetPath, { dontTrim, log }) {
  */
 async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   const o = options;
+  const tmpBase = o.tempDir || paths.temp;
   const step = (pct, msg) => {
     onProgress(pct, msg);
     log(`== ${msg}`);
@@ -116,12 +129,12 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   }
   if (!fs.existsSync(o.gamePath)) throw new Error(`Game file not found: ${o.gamePath}`);
 
-  fs.rmSync(paths.temp, { recursive: true, force: true });
-  fs.mkdirSync(paths.temp, { recursive: true });
+  fs.rmSync(tmpBase, { recursive: true, force: true });
+  fs.mkdirSync(tmpBase, { recursive: true });
 
   // 1) Wii container skeleton from BASE.zip, with Nintendont as main.dol
   step(2, 'Extracting Wii container skeleton (BASE.zip)...');
-  const tempBase = path.join(paths.temp, 'TempBase');
+  const tempBase = path.join(tmpBase, 'TempBase');
   new AdmZip(toolPath('BASE.zip')).extractAllTo(tempBase, true);
   // Some BASE.zip revisions nest everything in a single top folder — flatten.
   if (!fs.existsSync(path.join(tempBase, 'sys'))) {
@@ -140,15 +153,15 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   // 2) GameCube image(s) into the container's files/
   step(8, 'Preparing GameCube image...');
   fs.mkdirSync(path.join(tempBase, 'files'), { recursive: true });
-  await prepareGameFile(o.gamePath, path.join(tempBase, 'files', 'game.iso'), { dontTrim: o.dontTrim, log });
+  await prepareGameFile(o.gamePath, path.join(tempBase, 'files', 'game.iso'), { dontTrim: o.dontTrim, log, tempDir: tmpBase });
   if (o.disc2Path && fs.existsSync(o.disc2Path)) {
     step(20, 'Preparing disc 2...');
-    await prepareGameFile(o.disc2Path, path.join(tempBase, 'files', 'disc2.iso'), { dontTrim: o.dontTrim, log });
+    await prepareGameFile(o.disc2Path, path.join(tempBase, 'files', 'disc2.iso'), { dontTrim: o.dontTrim, log, tempDir: tmpBase });
   }
 
   // 3) Working copy of the decrypted base
   step(25, 'Copying base title...');
-  const work = path.join(paths.temp, 'baseRom');
+  const work = path.join(tmpBase, 'baseRom');
   copyDir(o.baseDir, work);
   const contentDir = path.join(work, 'content');
   const codeDir = path.join(work, 'code');
@@ -162,18 +175,18 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   const gameIso = path.join(contentDir, 'game.iso');
   fs.rmSync(gameIso, { force: true });
   await run(toolPath('wit.exe'), ['copy', tempBase, '--DEST', gameIso, '-ovv', '--links', '--iso'], {
-    cwd: paths.tools,
+    cwd: tmpBase,
     log,
   });
   if (!fs.existsSync(gameIso) || fs.statSync(gameIso).size === 0) throw new Error('wit copy produced no game.iso');
 
   // 5) Extract ticket/TMD from the built image -> code/rvlt.*
   step(55, 'Extracting ticket and TMD...');
-  const tikTmd = path.join(paths.temp, 'TIKTMD');
+  const tikTmd = path.join(tmpBase, 'TIKTMD');
   await run(
     toolPath('wit.exe'),
     ['extract', gameIso, '--psel', 'data', '--files', '+tmd.bin', '--files', '+ticket.bin', '--DEST', tikTmd, '-vv1'],
-    { cwd: paths.tools, log }
+    { cwd: tmpBase, log }
   );
   for (const f of fs.readdirSync(codeDir)) {
     if (f.startsWith('rvlt.')) fs.rmSync(path.join(codeDir, f), { force: true });
@@ -204,7 +217,7 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   if (o.autoFetchImages !== false) {
     try {
       const { fetchGameImages } = require('./artwork');
-      const artDir = path.join(paths.temp, 'art');
+      const artDir = path.join(tmpBase, 'art');
       const { found } = await fetchGameImages(o.gamePath, artDir, { log });
       if (!img.icon && found.iconTex) img.icon = found.iconTex;
       if (!img.tv && found.bootTvTex) img.tv = found.bootTvTex;
@@ -240,7 +253,7 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   if (o.commonKey) {
     step(85, 'Packing installable title (CNUSPACKER)...');
     await run(toolPath('CNUSPACKER.exe'), ['-in', work, '-out', outPath, '-encryptKeyWith', o.commonKey], {
-      cwd: paths.tools,
+      cwd: tmpBase,
       log,
     });
     if (!fs.readdirSync(outPath).length) throw new Error('CNUSPACKER produced no output.');
@@ -250,7 +263,7 @@ async function inject(options, { onProgress = () => {}, log = () => {} } = {}) {
   }
 
   step(100, 'Done.');
-  if (process.env.GCWU_KEEP_TEMP !== '1') fs.rmSync(paths.temp, { recursive: true, force: true });
+  if (process.env.GCWU_KEEP_TEMP !== '1') fs.rmSync(tmpBase, { recursive: true, force: true });
   return { outPath, titleId, prodCode, packed: !!o.commonKey };
 }
 

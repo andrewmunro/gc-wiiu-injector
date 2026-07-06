@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('api', {
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   saveNincfg: (opts) => ipcRenderer.invoke('nincfg:save', opts),
   onLog: (cb) => ipcRenderer.on('log', (_e, d) => cb(d.line)),
+  onBatchProgress: (cb) => ipcRenderer.on('batch:progress', (_e, d) => cb(d)),
+  onBatchLog: (cb) => ipcRenderer.on('batch:log', (_e, d) => cb(d)),
   onToolsProgress: (cb) => ipcRenderer.on('tools:progress', (_e, d) => cb(d)),
   onBaseProgress: (cb) => ipcRenderer.on('base:progress', (_e, d) => cb(d)),
   onInjectProgress: (cb) => ipcRenderer.on('inject:progress', (_e, d) => cb(d)),

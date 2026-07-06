@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { paths } = require('./paths');
 const { run } = require('./run');
 const { inject } = require('./inject');
@@ -105,9 +106,15 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
 
   log(`Found ${games.length} game(s) to process.`);
   const results = [];
-  for (let i = 0; i < games.length; i++) {
+  const maxConcurrent = Math.max(1, Math.min(os.cpus().length, games.length));
+  let idx = 0;
+
+  async function processOne() {
+    const i = idx++;
+    if (i >= games.length) return;
     const g = games[i];
     const label = `[${i + 1}/${games.length}] ${g.name}`;
+    const tempDir = path.join(paths.temp, 'batch', g.name.replace(/[^a-z0-9]/gi, '_'));
     log(`\n===== ${label} =====`);
     try {
       let gamePath = g.gamePath;
@@ -126,8 +133,9 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
           autoFetchImages: opts.autoFetchImages !== false,
           outDir: opts.outDir,
           commonKey: opts.commonKey,
+          tempDir,
         },
-        { onProgress: (pct, msg) => onProgress({ index: i, total: games.length, pct, msg, name: g.name }), log }
+        { onProgress: (pct, msg) => onProgress({ index: i, total: games.length, pct, msg, name: g.name }), log: (line) => log({ index: i, line }) }
       );
       results.push({ name: g.name, ok: true, outPath: res.outPath, titleId: res.titleId });
       log(`✓ ${label} -> ${res.outPath}`);
@@ -136,8 +144,12 @@ async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {})
       log(`✗ ${label} FAILED: ${e.message}`);
     } finally {
       try { g.cleanup && g.cleanup(); } catch {}
+      try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
     }
   }
+
+  const workers = Array.from({ length: maxConcurrent }, () => processOne());
+  await Promise.all(workers);
   return results;
 }
 

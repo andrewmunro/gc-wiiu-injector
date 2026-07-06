@@ -15,15 +15,56 @@ const GC_FILTERS = [
 ];
 const IMG_FILTERS = [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'tga'] }];
 
+const $log = $('log');
 function logLine(line) {
-  const el = $('log');
-  el.textContent += line + '\n';
-  el.scrollTop = el.scrollHeight;
+  $log.textContent += line + '\n';
+  $log.scrollTop = $log.scrollHeight;
 }
 
 function setProgress(pct, msg) {
   $('bar').style.width = `${Math.max(0, Math.min(100, pct))}%`;
   if (msg) $('progressMsg').textContent = msg;
+}
+
+// Batch per-game card management
+const batchCards = new Map(); // index -> { el, bar, status, log, logBtn }
+
+function ensureCard(index, total, name) {
+  let c = batchCards.get(index);
+  if (c) return c;
+  const container = $('batchCards');
+  const card = document.createElement('div');
+  card.className = 'game-card';
+  card.innerHTML = `
+    <div class="game-header">
+      <span class="game-name">${escHtml(name)}</span>
+      <span class="game-status">pending</span>
+      <button class="game-log-btn">Show logs</button>
+    </div>
+    <div class="game-bar"><div class="game-bar-fill"></div></div>
+    <pre class="game-log" hidden></pre>
+  `;
+  container.appendChild(card);
+  const el = {
+    card,
+    status: card.querySelector('.game-status'),
+    bar: card.querySelector('.game-bar-fill'),
+    log: card.querySelector('.game-log'),
+    logBtn: card.querySelector('.game-log-btn'),
+  };
+  el.logBtn.addEventListener('click', () => {
+    const hidden = el.log.hidden;
+    el.log.hidden = !hidden;
+    el.logBtn.textContent = hidden ? 'Hide logs' : 'Show logs';
+  });
+  batchCards.set(index, el);
+  return el;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
 }
 
 function refreshInjectButton() {
@@ -77,6 +118,18 @@ function bindPick(btnId, labelId, filters, assign) {
 }
 
 window.api.onLog(logLine);
+window.api.onBatchProgress(({ index, total, pct, msg, name }) => {
+  const c = ensureCard(index, total, name);
+  c.bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  c.status.textContent = msg || `${pct}%`;
+  if (pct >= 100) c.card.className = 'game-card ok';
+});
+window.api.onBatchLog(({ index, line }) => {
+  const c = batchCards.get(index);
+  if (!c) return;
+  c.log.textContent += line + '\n';
+  c.log.scrollTop = c.log.scrollHeight;
+});
 window.api.onToolsProgress(({ frac, name }) => setProgress(frac * 100, `Downloading ${name}…`));
 window.api.onBaseProgress(({ frac, phase }) =>
   setProgress(frac * 100, phase === 'decrypt' ? 'Decrypting base…' : 'Downloading base…')
@@ -193,6 +246,8 @@ $('btnBatch').addEventListener('click', async () => {
   $('btnBatch').disabled = true;
   $('btnInject').disabled = true;
   $('log').textContent = '';
+  batchCards.forEach((c) => c.card.remove());
+  batchCards.clear();
   try {
     const r = await window.api.batch({
       baseDir: $('baseSelect').value,
@@ -202,11 +257,11 @@ $('btnBatch').addEventListener('click', async () => {
     });
     if (r.canceled) return;
     const ok = r.results.filter((x) => x.ok).length;
-    setProgress(100, `Batch done: ${ok}/${r.results.length} succeeded`);
-    alert(
-      `Batch complete: ${ok}/${r.results.length} succeeded.\n\n` +
-        r.results.map((x) => `${x.ok ? '✓' : '✗'} ${x.name}${x.ok ? '' : ' — ' + x.error}`).join('\n')
-    );
+    for (const [i, c] of batchCards) {
+      c.card.className = 'game-card ' + (r.results[i]?.ok ? 'ok' : 'fail');
+      c.status.textContent = r.results[i]?.ok ? 'done' : (r.results[i]?.error || 'failed');
+    }
+    $('progressMsg').textContent = `Batch done: ${ok}/${r.results.length}`;
   } catch (e) {
     alert('Batch failed:\n' + e.message);
   } finally {

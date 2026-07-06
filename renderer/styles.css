@@ -83,3 +83,57 @@ summary { cursor: pointer; color: #9fb0d0; }
   word-break: break-all;
 }
 .imgrow .path { max-width: 110px; }
+
+#batchCards { margin-top: 10px; }
+.game-card {
+  background: #0d0f14;
+  border: 1px solid #262a33;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.game-card.ok { border-color: #2a5c3a; }
+.game-card.fail { border-color: #5c2a2a; }
+.game-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.game-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-status { font-size: 12px; color: #8b93a5; }
+.game-card.ok .game-status { color: #55c07a; }
+.game-card.fail .game-status { color: #e05050; }
+.game-bar {
+  height: 6px;
+  background: #10121a;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #2c3140;
+}
+.game-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b6ef6, #55c07a); transition: width 0.15s; }
+.game-card.fail .game-bar-fill { background: #e05050; }
+.game-log {
+  background: #080a0e;
+  border: 1px solid #1e222c;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #7a8399;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.game-log-btn {
+  background: transparent;
+  border: 1px solid #2c3140;
+  color: #8b93a5;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.game-log-btn:hover { background: #1e222c; }
