@@ -45,7 +45,20 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => app.quit());
 
-const logTo = (channel) => (line) => send(channel, { line });
+function createBatchedLog(channel, intervalMs = 150) {
+  let buf = [], timer = null;
+  return (line) => {
+    buf.push(line);
+    if (!timer) {
+      timer = setTimeout(() => {
+        if (buf.length) send(channel, { line: buf.join('\n') });
+        buf = [];
+        timer = null;
+      }, intervalMs);
+    }
+  };
+}
+const logTo = (channel) => createBatchedLog(channel);
 
 ipcMain.handle('status:get', () => ({
   missingTools: missingTools(),

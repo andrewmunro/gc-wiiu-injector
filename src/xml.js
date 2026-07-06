@@ -49,6 +49,7 @@ function editBaseXmls(metaXmlPath, appXmlPath, gameName, shortNameArg) {
   meta = setTag(meta, 'product_code', `WUP-N-${id2}`);
   meta = setTag(meta, 'title_id', titleId);
   meta = setTag(meta, 'group_id', `0000${id2}`);
+  meta = setTag(meta, 'drc_use', '65537');
   fs.writeFileSync(metaXmlPath, meta);
 
   let app = fs.readFileSync(appXmlPath, 'utf8');

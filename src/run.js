@@ -11,10 +11,17 @@ function run(exe, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(exe, args, { cwd, windowsHide: true });
     let output = '';
+    let lastLine = null;
     const onData = (d) => {
       const text = d.toString();
       output += text;
-      for (const line of text.split(/\r?\n/)) if (line.trim()) log(line.trim());
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.replace(/\r/g, '').trim();
+        if (trimmed && trimmed !== lastLine) {
+          lastLine = trimmed;
+          log(trimmed);
+        }
+      }
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
