@@ -17,11 +17,13 @@ converters. The UI and pipeline are Node/Electron; the tools are Windows executa
 Get from a GameCube dump to an installable Wii U title in a few minutes. The window walks
 top to bottom through four numbered steps:
 
-1. **Install and launch.**
-   ```
-   npm install
-   npm start
-   ```
+1. **Download and install.** Grab the latest build from the
+   [**latest release**](https://github.com/andrewmunro/gc-wiiu-injector/releases/tag/latest):
+   - **Windows:** `GC Wii U Injector-<ver>-x64-Setup.exe` (installer) or `-Portable.exe`.
+   - **macOS:** the `.dmg` (unsigned — right-click → **Open** the first time to get past
+     Gatekeeper).
+
+   Then launch it. *(Prefer to run from source? See [Run](#run).)*
 2. **1 · Setup.** On first run, wait for **Download tools** to finish (tools are fetched and
    MD5-verified into `~/.gc-wiiu-injector/tools/`). Paste your 32‑hex **Wii U common key** and
    click **Save** — without it you only get a loadiine folder, not an installable package.
