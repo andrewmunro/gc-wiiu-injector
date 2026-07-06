@@ -145,14 +145,17 @@ ipcMain.handle('inject:run', async (_e, options) => {
 
 ipcMain.handle('batch:run', async (_e, options) => {
   if (injecting) throw new Error('An injection is already running.');
-  const dir = options.dir || (await dialog.showOpenDialog(win, { title: 'Select folder of games', properties: ['openDirectory'] })).filePaths?.[0];
-  if (!dir) return { canceled: true };
+  if (!options.gamePath && !options.dir) {
+    const r = await dialog.showOpenDialog(win, { title: 'Select folder of games', properties: ['openDirectory'] });
+    options.dir = r.filePaths?.[0];
+    if (!options.dir) return { canceled: true };
+  }
   injecting = true;
   try {
     const { batchInject } = require('./batch');
     const s = settings.load();
     const results = await batchInject(
-      { ...options, dir, outDir: options.outDir || s.outDir, commonKey: s.commonKey },
+      { ...options, outDir: options.outDir || s.outDir, commonKey: s.commonKey },
       {
         onProgress: ({ index, total, pct, msg, name }) => send('batch:progress', { index, total, pct, msg, name }),
         log: ({ index, line }) => send('batch:log', { index, line }),
@@ -176,4 +179,4 @@ ipcMain.handle('nincfg:save', async (_e, { preset, forceVideo } = {}) => {
   return { saved: true, dest };
 });
 
-ipcMain.handle('shell:openPath', (_e, p) => shell.openPath(p));
+ipcMain.handle('shell:openPath', (_e, p) => shell.openPath(p || paths.output));

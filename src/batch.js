@@ -101,7 +101,15 @@ async function resolveGames(dir, { log = () => {} } = {}) {
  * failures; returns a per-game result summary.
  */
 async function batchInject(opts, { onProgress = () => {}, log = () => {} } = {}) {
-  const games = await resolveGames(opts.dir, { log });
+  let games;
+  if (opts.gamePath) {
+    const ext = path.extname(opts.gamePath).toLowerCase();
+    if (!IMAGE_EXTS.includes(ext))
+      throw new Error(`Not a recognized GC image: ${opts.gamePath}`);
+    games = [{ name: cleanName(opts.gamePath), gamePath: opts.gamePath, cleanup: null }];
+  } else {
+    games = await resolveGames(opts.dir, { log });
+  }
   if (!games.length) throw new Error(`No GC images or archives found in ${opts.dir}`);
 
   log(`Found ${games.length} game(s) to process.`);

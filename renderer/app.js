@@ -1,33 +1,25 @@
 const $ = (id) => document.getElementById(id);
 
 const state = {
-  game: null,
-  disc2: null,
-  images: { icon: null, tv: null, drc: null, logo: null },
+  sourcePath: null,
+  sourceType: null,
+  outDir: null,
   toolsOk: false,
   hasKey: false,
-  lastOut: null,
+  lastOutPath: null,
 };
 
 const GC_FILTERS = [
   { name: 'GameCube images', extensions: ['iso', 'gcm', 'ciso', 'gcz'] },
   { name: 'All files', extensions: ['*'] },
 ];
-const IMG_FILTERS = [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'tga'] }];
-
-const $log = $('log');
-function logLine(line) {
-  $log.textContent += line + '\n';
-  $log.scrollTop = $log.scrollHeight;
-}
 
 function setProgress(pct, msg) {
   $('bar').style.width = `${Math.max(0, Math.min(100, pct))}%`;
   if (msg) $('progressMsg').textContent = msg;
 }
 
-// Batch per-game card management
-const batchCards = new Map(); // index -> { el, bar, status, log, logBtn }
+const batchCards = new Map();
 
 function ensureCard(index, total, name) {
   let c = batchCards.get(index);
@@ -68,7 +60,7 @@ function escHtml(s) {
 }
 
 function refreshInjectButton() {
-  $('btnInject').disabled = !(state.toolsOk && state.game && $('baseSelect').value);
+  $('btnInject').disabled = !(state.toolsOk && state.sourcePath && $('baseSelect').value);
 }
 
 function renderBases(bases) {
@@ -105,19 +97,20 @@ async function refreshStatus() {
   renderBases(st.bases);
 }
 
-function bindPick(btnId, labelId, filters, assign) {
-  $(btnId).addEventListener('click', async () => {
-    const p = await window.api.pickFile('Choose file', filters);
-    if (!p) return;
-    assign(p);
-    const el = $(labelId);
-    el.textContent = p.split(/[\\/]/).pop();
+function setSourcePath(path, type) {
+  state.sourcePath = path;
+  state.sourceType = type;
+  const el = $('sourcePath');
+  if (path) {
+    el.textContent = path;
     el.classList.add('set');
-    refreshInjectButton();
-  });
+  } else {
+    el.textContent = 'none selected';
+    el.classList.remove('set');
+  }
+  refreshInjectButton();
 }
 
-window.api.onLog(logLine);
 window.api.onBatchProgress(({ index, total, pct, msg, name }) => {
   const c = ensureCard(index, total, name);
   c.bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
@@ -134,7 +127,6 @@ window.api.onToolsProgress(({ frac, name }) => setProgress(frac * 100, `Download
 window.api.onBaseProgress(({ frac, phase }) =>
   setProgress(frac * 100, phase === 'decrypt' ? 'Decrypting base…' : 'Downloading base…')
 );
-window.api.onInjectProgress(({ pct, msg }) => setProgress(pct, msg));
 
 $('btnTools').addEventListener('click', async () => {
   $('btnTools').disabled = true;
@@ -189,46 +181,66 @@ $('btnBaseImport').addEventListener('click', async () => {
   }
 });
 
-bindPick('btnGame', 'gamePath', GC_FILTERS, (p) => {
-  state.game = p;
-  if (!$('gameName').value) {
-    let n = p.split(/[\\/]/).pop().replace(/\.[^.]+$/, '').replace(/\.nkit$/i, '');
-    n = n.replace(/\s*[([].*?[)\]]\s*/g, ' ').trim(); // strip region tags
-    $('gameName').value = n;
-  }
-});
-bindPick('btnDisc2', 'disc2Path', GC_FILTERS, (p) => (state.disc2 = p));
-$('btnDisc2Clear').addEventListener('click', () => {
-  state.disc2 = null;
-  $('disc2Path').textContent = 'optional';
-  $('disc2Path').classList.remove('set');
-});
-bindPick('btnIcon', 'iconPath', IMG_FILTERS, (p) => (state.images.icon = p));
-bindPick('btnTv', 'tvPath', IMG_FILTERS, (p) => (state.images.tv = p));
-bindPick('btnDrc', 'drcPath', IMG_FILTERS, (p) => (state.images.drc = p));
-bindPick('btnLogo', 'logoPath', IMG_FILTERS, (p) => (state.images.logo = p));
-
 $('baseSelect').addEventListener('change', refreshInjectButton);
+
+$('btnSourceFile').addEventListener('click', async () => {
+  const p = await window.api.pickFile('Choose GC image', GC_FILTERS);
+  if (!p) return;
+  setSourcePath(p, 'file');
+});
+
+$('btnSourceDir').addEventListener('click', async () => {
+  const p = await window.api.pickDir('Choose folder of games');
+  if (!p) return;
+  setSourcePath(p, 'dir');
+});
+
+$('btnSourceClear').addEventListener('click', () => setSourcePath(null, null));
+
+$('btnOutDir').addEventListener('click', async () => {
+  const p = await window.api.pickDir('Choose output folder');
+  if (!p) return;
+  state.outDir = p;
+  $('outDirPath').textContent = p;
+  $('outDirPath').classList.add('set');
+});
+
+$('btnOutDirClear').addEventListener('click', () => {
+  state.outDir = null;
+  $('outDirPath').textContent = 'default';
+  $('outDirPath').classList.remove('set');
+});
 
 $('btnInject').addEventListener('click', async () => {
   $('btnInject').disabled = true;
   $('resultRow').hidden = true;
-  $('log').textContent = '';
+  $('progressMsg').textContent = '';
+  batchCards.forEach((c) => c.card.remove());
+  batchCards.clear();
+
+  const options = {
+    baseDir: $('baseSelect').value,
+    force43: $('optForce43').checked,
+    autoFetchImages: $('optAutoArt').checked,
+  };
+  if (state.outDir) options.outDir = state.outDir;
+  if (state.sourceType === 'file') options.gamePath = state.sourcePath;
+  else options.dir = state.sourcePath;
+
   try {
-    const res = await window.api.inject({
-      baseDir: $('baseSelect').value,
-      gamePath: state.game,
-      disc2Path: state.disc2,
-      gameName: $('gameName').value.trim() || 'GC Inject',
-      images: state.images,
-      force43: $('optForce43').checked,
-      dontTrim: $('optDontTrim').checked,
-      autoFetchImages: $('optAutoArt').checked,
-    });
-    state.lastOut = res.outPath;
-    $('resultMsg').textContent = res.packed
-      ? `Done — install with WUP Installer GX2: ${res.outPath}`
-      : `Done (loadiine format, set a common key for an installable package): ${res.outPath}`;
+    const r = await window.api.batch(options);
+    if (r.canceled) return;
+    const ok = r.results.filter((x) => x.ok).length;
+    const firstOk = r.results.find((x) => x.ok);
+    state.lastOutPath = firstOk?.outPath;
+    for (const [i, c] of batchCards) {
+      c.card.className = 'game-card ' + (r.results[i]?.ok ? 'ok' : 'fail');
+      c.status.textContent = r.results[i]?.ok ? 'done' : (r.results[i]?.error || 'failed');
+    }
+    $('progressMsg').textContent = `Done: ${ok}/${r.results.length} succeeded`;
+    $('resultMsg').textContent = state.hasKey
+      ? `Finished — ${ok} of ${r.results.length} game(s) injected`
+      : `Finished (loadiine format, set a common key for installable packages) — ${ok} of ${r.results.length}`;
     $('resultRow').hidden = false;
   } catch (e) {
     alert('Injection failed:\n' + e.message);
@@ -239,35 +251,8 @@ $('btnInject').addEventListener('click', async () => {
   }
 });
 
-$('btnOpenOut').addEventListener('click', () => state.lastOut && window.api.openPath(state.lastOut));
-
-$('btnBatch').addEventListener('click', async () => {
-  if (!$('baseSelect').value) return alert('Select a base first.');
-  $('btnBatch').disabled = true;
-  $('btnInject').disabled = true;
-  $('log').textContent = '';
-  batchCards.forEach((c) => c.card.remove());
-  batchCards.clear();
-  try {
-    const r = await window.api.batch({
-      baseDir: $('baseSelect').value,
-      force43: $('optForce43').checked,
-      dontTrim: $('optDontTrim').checked,
-      autoFetchImages: $('optAutoArt').checked,
-    });
-    if (r.canceled) return;
-    const ok = r.results.filter((x) => x.ok).length;
-    for (const [i, c] of batchCards) {
-      c.card.className = 'game-card ' + (r.results[i]?.ok ? 'ok' : 'fail');
-      c.status.textContent = r.results[i]?.ok ? 'done' : (r.results[i]?.error || 'failed');
-    }
-    $('progressMsg').textContent = `Batch done: ${ok}/${r.results.length}`;
-  } catch (e) {
-    alert('Batch failed:\n' + e.message);
-  } finally {
-    $('btnBatch').disabled = false;
-    refreshInjectButton();
-  }
+$('btnOpenOut').addEventListener('click', () => {
+  window.api.openPath(state.lastOutPath);
 });
 
 $('btnNincfg').addEventListener('click', async () => {

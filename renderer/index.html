@@ -60,58 +60,42 @@
       </details>
     </section>
 
-    <section id="game" class="card">
-      <h2>3 · Game</h2>
-      <div class="row">
-        <label>GC image</label>
-        <button id="btnGame">Choose…</button>
-        <span id="gamePath" class="path">none — iso / gcm / ciso / gcz / nkit.iso</span>
-      </div>
-      <div class="row">
-        <label>Disc 2</label>
-        <button id="btnDisc2">Choose…</button>
-        <span id="disc2Path" class="path">optional</span>
-        <button id="btnDisc2Clear" class="ghost">clear</button>
-      </div>
-      <div class="row">
-        <label for="gameName">Menu name</label>
-        <input id="gameName" placeholder="Name shown on the Wii U menu" />
-      </div>
+    <section id="options" class="card">
+      <h2>3 · Options</h2>
       <div class="row">
         <label><input type="checkbox" id="optAutoArt" checked /> Auto-fetch box art from community repo</label>
       </div>
-      <div class="row imgrow">
-        <label>Images</label>
-        <button id="btnIcon">Icon…</button><span id="iconPath" class="path">auto</span>
-        <button id="btnTv">TV…</button><span id="tvPath" class="path">auto</span>
-        <button id="btnDrc">GamePad…</button><span id="drcPath" class="path">= TV</span>
-        <button id="btnLogo">Logo…</button><span id="logoPath" class="path">keep base</span>
-      </div>
-      <p class="hint">Custom images override auto-fetch per slot. Uncheck auto-fetch to use the base's default art.</p>
       <div class="row">
         <label><input type="checkbox" id="optForce43" /> Force 4:3</label>
-        <label><input type="checkbox" id="optDontTrim" /> Don't trim (keep full ISO)</label>
+      </div>
+      <div class="row">
+        <label>Output folder</label>
+        <button id="btnOutDir">Choose…</button>
+        <span id="outDirPath" class="path">default</span>
+        <button id="btnOutDirClear" class="ghost">clear</button>
       </div>
     </section>
 
     <section id="go" class="card">
       <h2>4 · Inject</h2>
       <div class="row">
+        <label>Source</label>
+        <button id="btnSourceFile">Select file…</button>
+        <button id="btnSourceDir">Select folder…</button>
+        <span id="sourcePath" class="path">none selected</span>
+        <button id="btnSourceClear" class="ghost">clear</button>
+      </div>
+      <div class="row">
         <button id="btnInject" class="primary" disabled>Inject</button>
-        <button id="btnBatch">Batch a folder…</button>
         <div class="progress"><div id="bar"></div></div>
         <span id="progressMsg" class="status"></span>
       </div>
-      <p class="hint">Batch injects every GC image (or .7z/.zip archive containing one) in a folder against the selected base, using the current options and auto-fetched art.</p>
+      <p class="hint">Select a single game file (iso/gcm/ciso/gcz/nkit.iso) or a folder with multiple games. Archives (.7z/.zip) in a folder are extracted automatically.</p>
       <div id="batchCards"></div>
       <div class="row" id="resultRow" hidden>
         <span id="resultMsg"></span>
         <button id="btnOpenOut">Open output folder</button>
       </div>
-      <details id="logDetail">
-        <summary>Log</summary>
-        <pre id="log"></pre>
-      </details>
     </section>
   </main>
 
